@@ -1,0 +1,98 @@
+#!/bin/bash
+### ElNqYb Music Bot Installer
+
+pprint (){
+	cred='\033[0;31m'
+	cgreen='\033[0;32m'
+	cyellow='\033[0;33m'
+	cblue='\033[0;34m'
+	cpurple='\033[0;35m'
+	eval "export color='$cpurple'"
+	[ ! -z $2 ] && eval "export color=\"\$$2\""
+    printf "$color $1"
+}
+
+color_reset(){ printf '\033[0;37m';}
+
+yesnoprompt(){
+	old_stty_cfg=$(stty -g)
+	stty raw -echo ; answer=$(head -c 1)
+	stty $old_stty_cfg
+	echo "$answer" | grep -iq "^y"
+}
+
+update() {
+	pprint "\n\nجاري تحديث قائمة الحزم.. "
+	sudo apt update 2>&1 | grep "can be upgraded" &>/dev/null
+	if [ $? -eq 0 ]; then
+		pprint "تحديث متاح" "cgreen"
+		pprint "\n\nهل ترغب في الترقية تلقائيًا (ن/ي)?"
+		if yesnoprompt; then
+			pprint "\n\nجاري ترقية الحزم.. "
+			sudo apt upgrade -y &>/dev/null &&
+			pprint "تمت العملية بنجاح!\n\n" "cgreen" || (pprint "فشلت العملية.\n\n" "cred"; exit 1)
+		else
+			echo
+		fi
+	else
+		pprint "النظام محدث بالفعل\n\n" "cgreen"
+	fi
+}
+
+packages(){
+	if ! command -v pip &>/dev/null; then
+		pprint "لم يتم العثور على pip، جاري التثبيت الآن.. "
+		sudo apt install python3-pip -y 2>pypilog.txt 1>/dev/null &&
+		pprint "تم بنجاح.\n\n" "cgreen" || (pprint "فشل.\n\n" "cred"; exit 1)
+	fi
+
+	if ! command -v ffmpeg &>/dev/null; then
+		pprint "لم يتم العثور على ffmpeg، جاري التثبيت الآن.. "
+		if sudo apt install ffmpeg -y &>/dev/null;then
+			pprint "تم بنجاح.\n\n" "cgreen"
+		else
+			pprint "فشل.\n\n" "cred"
+			pprint "يجب عليك تثبيت ffmpeg يدويًا لاستخدام YukkiMusicBot، جاري الخروج..\n" "cblue"
+			exit 1
+		fi
+	fi
+
+	# Check ffmpeg version and warn user if necessary.
+	fv=$(grep -Po 'version (3.*?) ' <<< $(ffmpeg -version)) &&
+	pprint "لن يعمل تشغيل البث المباشر لديك، حيث أن لديك ffmpeg $fv، والبث المباشر مدعوم فقط في الإصدار 4 أو أحدث.\n" "cblue"
+}
+
+
+node(){
+	command -v npm &>/dev/null && return
+	pprint "جاري تثبيت Node.js و Npm..  "
+	curl -fssL https://deb.nodesource.com/setup_18.x | sudo -E bash - &>nodelog.txt &&
+	sudo apt install nodejs -y &>>nodelog.txt &&
+	sudo npm i -g npm &>>nodelog.txt &&
+	pprint "تم بنجاح!\n" "cgreen" || (pprint "فشل.\n" "cred"; exit 1)
+}
+
+installation(){
+	pprint "\n\nجاري ترقية pip وتثبيت الحزم اللازمة.. "
+	pip3 install -U pip &>>pypilog.txt &&
+	pip3 install -U -r requirements.txt &>>pypilog.txt &&
+	pprint "تم بنجاح.\n" "cgreen" && return
+	pprint "فشل.\n" "cred"
+	exit 1
+}
+sudo test
+
+update
+packages
+node
+installation
+sleep 4
+
+if [ -f .env ]; then
+	rm .env
+fi
+
+echo """OWNER
+Sasa""" > .env
+clear
+pprint "\n\n\n\n\n تم تثبيت بوت ElNqYb بنجاح!" "cgreen"
